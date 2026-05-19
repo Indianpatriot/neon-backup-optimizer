@@ -1327,16 +1327,14 @@ function Educational() {
               optimal Huffman-style tree — the greedy choice is globally optimal.
             </p>
           </GlowCard>
-          <GlowCard>
+          <GlowCard className="min-w-0">
             <h3 className="text-xl font-bold neon-text-purple mb-4">
               Huffman-style Tree
             </h3>
-            <div className="flex justify-center">
-              <TreeView
-                node={
-                  optimalMerge([5, 10, 20, 30]).tree
-                }
-              />
+            <div className="w-full overflow-x-auto">
+              <div className="flex justify-center min-w-fit">
+                <TreeView node={optimalMerge([5, 10, 20, 30]).tree} />
+              </div>
             </div>
           </GlowCard>
         </div>
