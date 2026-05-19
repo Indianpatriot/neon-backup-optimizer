@@ -1534,6 +1534,8 @@ function Index() {
       <CodeTabs />
       <ComplexitySection />
       <Educational />
+      <ComparisonCharts />
+      <Recommendation />
       <Footer />
     </main>
   );
