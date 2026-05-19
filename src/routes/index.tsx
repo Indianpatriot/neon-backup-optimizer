@@ -31,6 +31,7 @@ import {
   Legend,
 } from "recharts";
 import { optimalMerge, type TreeNode } from "@/lib/heap-algo";
+import { optimalMergeDP } from "@/lib/dp-algo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
