@@ -522,10 +522,18 @@ function ComplexityPanel() {
 }
 
 /* ---------- Simulator ---------- */
+type ExecMode = "greedy" | "dp" | "compare";
+
 function Simulator() {
   const [sizes, setSizes] = useState<number[]>([20, 30, 10, 5]);
-  const [result, setResult] = useState<ReturnType<typeof optimalMerge> | null>(null);
+  const [mode, setMode] = useState<ExecMode>("greedy");
+  const [greedy, setGreedy] = useState<ReturnType<typeof optimalMerge> | null>(null);
+  const [dp, setDp] = useState<ReturnType<typeof optimalMergeDP> | null>(null);
+  const [greedyTimeMs, setGreedyTimeMs] = useState<number>(0);
+  const [dpTimeMs, setDpTimeMs] = useState<number>(0);
   const [revealStep, setRevealStep] = useState(0);
+  const [dpReveal, setDpReveal] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const updateSize = (i: number, v: string) => {
     const n = Math.max(0, parseInt(v) || 0);
@@ -533,40 +541,72 @@ function Simulator() {
   };
 
   const calculate = () => {
-    const r = optimalMerge(sizes.filter((s) => s > 0));
-    setResult(r);
+    const clean = sizes.filter((s) => s > 0);
+    setLoading(true);
     setRevealStep(0);
+    setDpReveal(0);
+
     setTimeout(() => {
-      let i = 0;
-      const id = setInterval(() => {
-        i++;
-        setRevealStep(i);
-        if (i >= r.steps.length) clearInterval(id);
-      }, 700);
-    }, 100);
+      let g: ReturnType<typeof optimalMerge> | null = null;
+      let d: ReturnType<typeof optimalMergeDP> | null = null;
+
+      if (mode === "greedy" || mode === "compare") {
+        const t0 = performance.now();
+        g = optimalMerge(clean);
+        setGreedyTimeMs(performance.now() - t0);
+        setGreedy(g);
+      } else {
+        setGreedy(null);
+      }
+
+      if (mode === "dp" || mode === "compare") {
+        const t0 = performance.now();
+        d = optimalMergeDP(clean);
+        setDpTimeMs(performance.now() - t0);
+        setDp(d);
+      } else {
+        setDp(null);
+      }
+
+      setLoading(false);
+
+      // animate greedy steps
+      if (g) {
+        let i = 0;
+        const id = setInterval(() => {
+          i++;
+          setRevealStep(i);
+          if (g && i >= g.steps.length) clearInterval(id);
+        }, 600);
+      }
+      // animate dp steps
+      if (d) {
+        let i = 0;
+        const id = setInterval(() => {
+          i++;
+          setDpReveal(i);
+          if (d && i >= d.steps.length) clearInterval(id);
+        }, 500);
+      }
+    }, 250);
   };
 
   const reset = () => {
     setSizes([10, 20, 30]);
-    setResult(null);
+    setGreedy(null);
+    setDp(null);
     setRevealStep(0);
+    setDpReveal(0);
   };
 
   const generate = () => {
-    const n = 4 + Math.floor(Math.random() * 4);
+    const n = 4 + Math.floor(Math.random() * 3);
     setSizes(Array.from({ length: n }, () => Math.floor(Math.random() * 90) + 5));
-    setResult(null);
+    setGreedy(null);
+    setDp(null);
     setRevealStep(0);
+    setDpReveal(0);
   };
-
-  const costData = useMemo(() => {
-    if (!result) return [];
-    return result.steps.slice(0, revealStep).map((s, i) => ({
-      step: `S${i + 1}`,
-      cost: s.runningCost,
-      merge: s.merged,
-    }));
-  }, [result, revealStep]);
 
   return (
     <section id="simulate" className="relative py-24 px-6">
@@ -574,11 +614,45 @@ function Simulator() {
         <SectionTitle
           eyebrow="03 — Simulate"
           title="Interactive Merge Simulator"
-          subtitle="Enter backup sizes (MB) and watch the greedy min-heap algorithm compute the optimal cost."
+          subtitle="Pick an execution mode, enter backup sizes (MB), and watch the algorithms run step-by-step."
         />
 
+        {/* Execution Mode Selector */}
         <GlowCard className="mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
+            <label className="font-mono text-xs uppercase tracking-widest neon-text-cyan whitespace-nowrap">
+              › Select Execution Mode
+            </label>
+            <select
+              value={mode}
+              onChange={(e) => {
+                setMode(e.target.value as ExecMode);
+                setGreedy(null);
+                setDp(null);
+              }}
+              className="px-5 py-3 rounded-lg glass-strong neon-border-cyan font-mono text-sm focus:outline-none cursor-pointer w-full md:min-w-[320px] md:w-auto"
+            >
+              <option value="greedy">1. Greedy Only — O(n log n)</option>
+              <option value="dp">2. Dynamic Programming Only — O(n³)</option>
+              <option value="compare">3. Compare Both Approaches ★</option>
+            </select>
+            <div className="flex gap-2 ml-auto">
+              {(["greedy", "dp", "compare"] as ExecMode[]).map((m) => (
+                <div
+                  key={m}
+                  className={`px-3 py-1.5 rounded text-[10px] font-mono uppercase tracking-widest transition ${
+                    mode === m
+                      ? "gradient-neon text-background font-bold shadow-[0_0_18px_oklch(0.7_0.22_240/60%)]"
+                      : "glass border border-[oklch(0.4_0.08_280/30%)] text-muted-foreground"
+                  }`}
+                >
+                  {m === "compare" ? "Both" : m}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
             <h3 className="text-lg font-bold neon-text-cyan font-mono">
               › Enter backup sizes
             </h3>
@@ -616,9 +690,18 @@ function Simulator() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button onClick={calculate} className="btn-neon">
+            <button onClick={calculate} disabled={loading} className="btn-neon disabled:opacity-60">
               <span className="inline-flex items-center gap-2">
-                <Zap className="h-4 w-4" /> Calculate Optimal Merge
+                {loading ? (
+                  <>
+                    <span className="h-3 w-3 rounded-full border-2 border-background border-t-transparent animate-spin" />
+                    Running…
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" /> Calculate
+                  </>
+                )}
               </span>
             </button>
             <button onClick={generate} className="btn-neon btn-neon-purple">
@@ -635,89 +718,334 @@ function Simulator() {
           </div>
         </GlowCard>
 
-        {result && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid lg:grid-cols-2 gap-6"
-          >
-            <GlowCard>
-              <h4 className="text-lg font-bold neon-text-cyan mb-4 font-mono">
-                › Step-by-step merge
-              </h4>
-              <div className="space-y-2 font-mono text-sm max-h-[400px] overflow-y-auto pr-2">
-                {result.steps.slice(0, revealStep).map((s, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center justify-between p-3 rounded-lg bg-[oklch(0.2_0.05_270/50%)] border-l-2 border-[oklch(0.85_0.18_200)]"
-                  >
-                    <span>
-                      <span className="text-muted-foreground">Step {i + 1}:</span>{" "}
-                      Merge <span className="neon-text-cyan">{s.picked[0]}</span> +{" "}
-                      <span className="neon-text-cyan">{s.picked[1]}</span> ={" "}
-                      <span className="neon-text-purple font-bold">{s.merged}</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Σ {s.runningCost}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-              {revealStep >= result.steps.length && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="mt-4 p-5 rounded-xl gradient-neon text-center"
-                >
-                  <div className="text-xs uppercase tracking-widest text-background/80 font-mono">
-                    Total Optimal Cost
-                  </div>
-                  <div className="text-4xl font-black text-background">
-                    {result.totalCost}
-                  </div>
-                </motion.div>
-              )}
-              <p className="mt-4 text-xs text-muted-foreground italic">
-                Choosing the smallest backups first minimizes cumulative merge cost.
-              </p>
-            </GlowCard>
-
-            <GlowCard>
-              <h4 className="text-lg font-bold neon-text-purple mb-4 font-mono">
-                › Cost accumulation
-              </h4>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={costData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.4 0.08 280 / 30%)" />
-                    <XAxis dataKey="step" stroke="oklch(0.7 0.04 250)" fontSize={11} />
-                    <YAxis stroke="oklch(0.7 0.04 250)" fontSize={11} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "oklch(0.15 0.04 270 / 95%)",
-                        border: "1px solid oklch(0.65 0.27 300 / 60%)",
-                        borderRadius: 8,
-                      }}
-                    />
-                    <Bar dataKey="cost" fill="oklch(0.65 0.27 300)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-6">
-                <h5 className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-3">
-                  Merge Tree
-                </h5>
-                <div className="overflow-x-auto">
-                  <TreeView node={result.tree} />
+        {/* Results */}
+        {mode === "greedy" && greedy && (
+          <GreedyResultPanel result={greedy} revealStep={revealStep} timeMs={greedyTimeMs} />
+        )}
+        {mode === "dp" && dp && (
+          <DpResultPanel result={dp} reveal={dpReveal} timeMs={dpTimeMs} />
+        )}
+        {mode === "compare" && greedy && dp && (
+          <div className="space-y-6">
+            <div className="grid lg:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <div className="px-3 py-1.5 inline-block rounded font-mono text-[10px] uppercase tracking-widest neon-border-cyan neon-text-cyan">
+                  Left · Greedy
                 </div>
+                <GreedyResultPanel result={greedy} revealStep={revealStep} timeMs={greedyTimeMs} compact />
               </div>
-            </GlowCard>
-          </motion.div>
+              <div className="space-y-1">
+                <div className="px-3 py-1.5 inline-block rounded font-mono text-[10px] uppercase tracking-widest neon-border-purple neon-text-purple">
+                  Right · Dynamic Programming
+                </div>
+                <DpResultPanel result={dp} reveal={dpReveal} timeMs={dpTimeMs} compact />
+              </div>
+            </div>
+            <CompareSummary greedy={greedy} dp={dp} greedyTimeMs={greedyTimeMs} dpTimeMs={dpTimeMs} />
+          </div>
         )}
       </div>
     </section>
+  );
+}
+
+/* ---------- Greedy result ---------- */
+function GreedyResultPanel({
+  result,
+  revealStep,
+  timeMs,
+  compact = false,
+}: {
+  result: NonNullable<ReturnType<typeof optimalMerge>>;
+  revealStep: number;
+  timeMs: number;
+  compact?: boolean;
+}) {
+  const costData = result.steps.slice(0, revealStep).map((s, i) => ({
+    step: `S${i + 1}`,
+    cost: s.runningCost,
+  }));
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={compact ? "" : "grid lg:grid-cols-2 gap-6"}
+    >
+      <GlowCard>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-lg font-bold neon-text-cyan font-mono">› Greedy / Min-Heap</h4>
+          <span className="text-[10px] font-mono text-muted-foreground">
+            {timeMs.toFixed(3)} ms
+          </span>
+        </div>
+        <div className="space-y-2 font-mono text-sm max-h-[320px] overflow-y-auto pr-2">
+          {result.steps.slice(0, revealStep).map((s, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center justify-between p-3 rounded-lg bg-[oklch(0.2_0.05_270/50%)] border-l-2 border-[oklch(0.85_0.18_200)]"
+            >
+              <span>
+                <span className="text-muted-foreground">S{i + 1}:</span>{" "}
+                <span className="neon-text-cyan">{s.picked[0]}</span> +{" "}
+                <span className="neon-text-cyan">{s.picked[1]}</span> ={" "}
+                <span className="neon-text-purple font-bold">{s.merged}</span>
+              </span>
+              <span className="text-xs text-muted-foreground">Σ {s.runningCost}</span>
+            </motion.div>
+          ))}
+        </div>
+        {revealStep >= result.steps.length && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mt-4 p-5 rounded-xl gradient-neon text-center"
+          >
+            <div className="text-xs uppercase tracking-widest text-background/80 font-mono">
+              Total Optimal Cost
+            </div>
+            <div className="text-4xl font-black text-background">{result.totalCost}</div>
+          </motion.div>
+        )}
+      </GlowCard>
+      {!compact && (
+        <GlowCard>
+          <h4 className="text-lg font-bold neon-text-purple mb-4 font-mono">› Cost accumulation</h4>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={costData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.4 0.08 280 / 30%)" />
+                <XAxis dataKey="step" stroke="oklch(0.7 0.04 250)" fontSize={11} />
+                <YAxis stroke="oklch(0.7 0.04 250)" fontSize={11} />
+                <Tooltip
+                  contentStyle={{
+                    background: "oklch(0.15 0.04 270 / 95%)",
+                    border: "1px solid oklch(0.65 0.27 300 / 60%)",
+                    borderRadius: 8,
+                  }}
+                />
+                <Bar dataKey="cost" fill="oklch(0.65 0.27 300)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-6">
+            <h5 className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-3">
+              Merge Tree
+            </h5>
+            <div className="overflow-x-auto">
+              <TreeView node={result.tree} />
+            </div>
+          </div>
+        </GlowCard>
+      )}
+    </motion.div>
+  );
+}
+
+/* ---------- DP result ---------- */
+function DpResultPanel({
+  result,
+  reveal,
+  timeMs,
+  compact = false,
+}: {
+  result: NonNullable<ReturnType<typeof optimalMergeDP>>;
+  reveal: number;
+  timeMs: number;
+  compact?: boolean;
+}) {
+  const lastStep = result.steps[Math.max(0, reveal - 1)];
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={compact ? "space-y-6" : "grid lg:grid-cols-2 gap-6"}
+    >
+      <GlowCard>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-lg font-bold neon-text-purple font-mono">› DP Execution</h4>
+          <span className="text-[10px] font-mono text-muted-foreground">
+            {timeMs.toFixed(3)} ms
+          </span>
+        </div>
+        <div className="space-y-2 font-mono text-xs max-h-[320px] overflow-y-auto pr-2">
+          {result.steps.slice(0, reveal).map((s, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="p-3 rounded-lg bg-[oklch(0.2_0.05_270/50%)] border-l-2 border-[oklch(0.65_0.27_300)]"
+            >
+              <div className="flex items-center justify-between">
+                <span>
+                  <span className="text-muted-foreground">dp[{s.i}][{s.j}]</span> ={" "}
+                  <span className="neon-text-purple font-bold">{s.bestCost}</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  split @ k={s.bestK} · Σ[i..j]={s.sumIJ}
+                </span>
+              </div>
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                candidates: {s.candidates.map((c) => `k=${c.k}:${c.cost}`).join(" · ")}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+        {reveal >= result.steps.length && result.steps.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mt-4 p-5 rounded-xl gradient-neon text-center"
+          >
+            <div className="text-xs uppercase tracking-widest text-background/80 font-mono">
+              Total Optimal Cost (DP)
+            </div>
+            <div className="text-4xl font-black text-background">{result.totalCost}</div>
+          </motion.div>
+        )}
+      </GlowCard>
+      <GlowCard>
+        <h4 className="text-lg font-bold neon-text-cyan mb-4 font-mono">› DP State Matrix</h4>
+        <div className="overflow-x-auto">
+          <DpTableView result={result} highlight={lastStep ? { i: lastStep.i, j: lastStep.j } : null} />
+        </div>
+        {!compact && (
+          <div className="mt-6">
+            <h5 className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-3">
+              Optimal Merge Tree (from DP)
+            </h5>
+            <div className="overflow-x-auto">
+              <TreeView node={result.tree} />
+            </div>
+          </div>
+        )}
+        <div className="mt-5 p-4 rounded-lg bg-[oklch(0.2_0.05_270/40%)] border-l-2 border-[oklch(0.85_0.18_200)]">
+          <p className="text-xs leading-relaxed">
+            <span className="neon-text-cyan font-bold">Why DP is slower:</span>{" "}
+            For every sub-range [i..j] DP tries every split k → O(n³) work and
+            O(n²) memory. Greedy reaches the same optimum in O(n log n).
+          </p>
+        </div>
+      </GlowCard>
+    </motion.div>
+  );
+}
+
+/* ---------- DP Table Visualization ---------- */
+function DpTableView({
+  result,
+  highlight,
+}: {
+  result: NonNullable<ReturnType<typeof optimalMergeDP>>;
+  highlight: { i: number; j: number } | null;
+}) {
+  const { n, table, sizes } = result;
+  return (
+    <table className="font-mono text-xs border-separate border-spacing-1">
+      <thead>
+        <tr>
+          <th className="px-2 py-1 text-[10px] text-muted-foreground uppercase">i\j</th>
+          {sizes.map((s, j) => (
+            <th
+              key={j}
+              className="px-2 py-1 text-[10px] neon-text-cyan min-w-[44px]"
+              title={`size ${s}`}
+            >
+              {j}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: n }).map((_, i) => (
+          <tr key={i}>
+            <td className="px-2 py-1 text-[10px] neon-text-cyan">{i}</td>
+            {Array.from({ length: n }).map((_, j) => {
+              const filled = j >= i && (i === j || table[i][j] > 0);
+              const isHi = highlight && highlight.i === i && highlight.j === j;
+              return (
+                <td
+                  key={j}
+                  className={`w-11 h-11 text-center rounded transition-all duration-300 ${
+                    j < i
+                      ? "border border-[oklch(0.3_0.05_270/30%)] text-muted-foreground/40"
+                      : i === j
+                      ? "neon-border-cyan text-foreground"
+                      : filled
+                      ? isHi
+                        ? "neon-border-purple bg-[oklch(0.65_0.27_300/40%)] neon-text-purple animate-neon-pulse"
+                        : "neon-border-purple bg-[oklch(0.65_0.27_300/15%)] neon-text-purple"
+                      : "border border-[oklch(0.3_0.05_270/40%)] text-muted-foreground/40"
+                  }`}
+                >
+                  {j < i ? "·" : i === j ? sizes[i] : filled ? table[i][j] : "?"}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/* ---------- Compare summary ---------- */
+function CompareSummary({
+  greedy,
+  dp,
+  greedyTimeMs,
+  dpTimeMs,
+}: {
+  greedy: NonNullable<ReturnType<typeof optimalMerge>>;
+  dp: NonNullable<ReturnType<typeof optimalMergeDP>>;
+  greedyTimeMs: number;
+  dpTimeMs: number;
+}) {
+  const match = greedy.totalCost === dp.totalCost;
+  return (
+    <GlowCard>
+      <h4 className="text-lg font-bold gradient-text mb-4 font-mono">› Side-by-side summary</h4>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm font-mono min-w-[480px]">
+          <thead>
+            <tr className="border-b border-[oklch(0.4_0.08_280/40%)] text-left text-[10px] uppercase tracking-widest text-muted-foreground">
+              <th className="py-2">Metric</th>
+              <th className="py-2 neon-text-cyan">Greedy</th>
+              <th className="py-2 neon-text-purple">Dynamic Programming</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-[oklch(0.3_0.05_270/30%)]">
+              <td className="py-3">Final cost</td>
+              <td className="neon-text-cyan font-bold">{greedy.totalCost}</td>
+              <td className="neon-text-purple font-bold">{dp.totalCost}</td>
+            </tr>
+            <tr className="border-b border-[oklch(0.3_0.05_270/30%)]">
+              <td className="py-3">Execution time</td>
+              <td>{greedyTimeMs.toFixed(3)} ms</td>
+              <td>{dpTimeMs.toFixed(3)} ms</td>
+            </tr>
+            <tr className="border-b border-[oklch(0.3_0.05_270/30%)]">
+              <td className="py-3">Time complexity</td>
+              <td>O(n log n)</td>
+              <td>O(n³)</td>
+            </tr>
+            <tr className="border-b border-[oklch(0.3_0.05_270/30%)]">
+              <td className="py-3">Space complexity</td>
+              <td>O(n)</td>
+              <td>O(n²)</td>
+            </tr>
+            <tr>
+              <td className="py-3">Result agrees?</td>
+              <td colSpan={2} className={match ? "neon-text-cyan" : "text-destructive"}>
+                {match ? "✓ Both algorithms produce the same optimal cost." : "✗ Mismatch"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </GlowCard>
   );
 }
 
