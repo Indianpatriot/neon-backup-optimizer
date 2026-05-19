@@ -1343,6 +1343,161 @@ function Educational() {
   );
 }
 
+/* ---------- Comparison charts ---------- */
+function ComparisonCharts() {
+  const data = useMemo(() => {
+    const sizes = [4, 8, 16, 32, 64, 128, 256];
+    return sizes.map((n) => ({
+      n: `n=${n}`,
+      greedyTime: +(n * Math.log2(n)).toFixed(2),
+      dpTime: +(n * n * n).toFixed(2),
+      greedyMem: n,
+      dpMem: n * n,
+    }));
+  }, []);
+  const tooltipStyle = {
+    background: "oklch(0.15 0.04 270 / 95%)",
+    border: "1px solid oklch(0.7 0.22 240 / 60%)",
+    borderRadius: 8,
+    fontFamily: "monospace",
+    fontSize: 12,
+  } as const;
+  return (
+    <section className="relative py-24 px-6">
+      <div className="mx-auto max-w-6xl">
+        <SectionTitle
+          eyebrow="08 — Comparison"
+          title="Algorithm Performance Comparison"
+          subtitle="Live curves comparing how Greedy and DP scale across input size."
+        />
+        <div className="grid lg:grid-cols-2 gap-6">
+          <GlowCard className="min-w-0">
+            <h4 className="text-lg font-bold neon-text-cyan mb-2 font-mono">› Execution speed (log scale)</h4>
+            <p className="text-xs text-muted-foreground mb-4">Greedy O(n log n) vs DP O(n³).</p>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.4 0.08 280 / 30%)" />
+                  <XAxis dataKey="n" stroke="oklch(0.7 0.04 250)" fontSize={11} />
+                  <YAxis stroke="oklch(0.7 0.04 250)" fontSize={11} scale="log" domain={["auto", "auto"]} allowDataOverflow />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="greedyTime"
+                    name="Greedy"
+                    stroke="oklch(0.85 0.18 200)"
+                    strokeWidth={3}
+                    dot={{ fill: "oklch(0.85 0.18 200)", r: 4 }}
+                    isAnimationActive
+                    animationDuration={1400}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="dpTime"
+                    name="DP"
+                    stroke="oklch(0.7 0.28 340)"
+                    strokeWidth={3}
+                    dot={{ fill: "oklch(0.7 0.28 340)", r: 4 }}
+                    isAnimationActive
+                    animationDuration={1400}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </GlowCard>
+
+          <GlowCard className="min-w-0">
+            <h4 className="text-lg font-bold neon-text-purple mb-2 font-mono">› Memory usage</h4>
+            <p className="text-xs text-muted-foreground mb-4">Greedy O(n) vs DP O(n²).</p>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.4 0.08 280 / 30%)" />
+                  <XAxis dataKey="n" stroke="oklch(0.7 0.04 250)" fontSize={11} />
+                  <YAxis stroke="oklch(0.7 0.04 250)" fontSize={11} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="greedyMem"
+                    name="Greedy O(n)"
+                    stroke="oklch(0.85 0.18 200)"
+                    strokeWidth={3}
+                    dot={{ fill: "oklch(0.85 0.18 200)", r: 4 }}
+                    isAnimationActive
+                    animationDuration={1400}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="dpMem"
+                    name="DP O(n²)"
+                    stroke="oklch(0.7 0.28 340)"
+                    strokeWidth={3}
+                    dot={{ fill: "oklch(0.7 0.28 340)", r: 4 }}
+                    isAnimationActive
+                    animationDuration={1400}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </GlowCard>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- Recommendation ---------- */
+function Recommendation() {
+  const rows = [
+    ["Time Complexity", "O(n log n)", "O(n³)"],
+    ["Space Complexity", "O(n)", "O(n²)"],
+    ["Ease of Implementation", "Simple — min-heap", "Complex — 3 nested loops"],
+    ["Scalability", "Excellent (millions of items)", "Poor (n > ~500 impractical)"],
+    ["Practical Usage", "Industry standard", "Educational / theoretical"],
+  ];
+  return (
+    <section className="relative py-24 px-6">
+      <div className="mx-auto max-w-5xl">
+        <SectionTitle
+          eyebrow="09 — Recommendation"
+          title="Greedy vs DP — Which One Should We Choose?"
+          subtitle="For this problem the greedy / min-heap approach is globally optimal AND dramatically faster. DP is kept for pedagogical comparison only."
+        />
+        <GlowCard className="min-w-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm font-mono min-w-[560px]">
+              <thead>
+                <tr className="border-b border-[oklch(0.4_0.08_280/40%)] text-left text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <th className="py-3">Feature</th>
+                  <th className="py-3 neon-text-cyan">Greedy ★ Recommended</th>
+                  <th className="py-3 neon-text-purple">Dynamic Programming</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className="border-b border-[oklch(0.3_0.05_270/30%)]">
+                    <td className="py-3 text-muted-foreground">{r[0]}</td>
+                    <td className="py-3 neon-text-cyan">{r[1]}</td>
+                    <td className="py-3">{r[2]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-6 p-5 rounded-xl gradient-neon text-background">
+            <div className="text-xs uppercase tracking-widest font-mono opacity-80">Verdict</div>
+            <div className="mt-1 font-bold">
+              Greedy / Min-Heap is the recommended choice — globally optimal at O(n log n).
+            </div>
+          </div>
+        </GlowCard>
+      </div>
+    </section>
+  );
+}
+
 /* ---------- Footer ---------- */
 function Footer() {
   return (
