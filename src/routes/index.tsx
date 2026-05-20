@@ -2188,6 +2188,7 @@ function Index() {
       <Educational />
       <ComparisonCharts />
       <Recommendation />
+      <DetailedComplexity />
       <Footer />
     </main>
   );
