@@ -1498,6 +1498,658 @@ function Recommendation() {
   );
 }
 
+/* ---------- Detailed Complexity ---------- */
+function StepCard({
+  index,
+  title,
+  body,
+  formula,
+  color = "cyan",
+}: {
+  index: number;
+  title: string;
+  body: string;
+  formula: string;
+  color?: "cyan" | "purple";
+}) {
+  const accent = color === "cyan" ? "neon-text-cyan" : "neon-text-purple";
+  const border =
+    color === "cyan"
+      ? "border-[oklch(0.75_0.2_200/40%)] shadow-[0_0_25px_oklch(0.7_0.22_220/25%)]"
+      : "border-[oklch(0.65_0.27_300/40%)] shadow-[0_0_25px_oklch(0.65_0.27_300/25%)]";
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.45, delay: index * 0.06 }}
+      className={`glass rounded-2xl p-5 border ${border}`}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={`h-9 w-9 rounded-lg flex items-center justify-center font-mono text-sm font-bold ${
+            color === "cyan"
+              ? "bg-[oklch(0.75_0.2_220/15%)] neon-text-cyan"
+              : "bg-[oklch(0.65_0.27_300/15%)] neon-text-purple"
+          }`}
+        >
+          {index}
+        </div>
+        <h4 className="font-display text-base font-semibold">{title}</h4>
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{body}</p>
+      <div className={`mt-4 px-4 py-3 rounded-lg bg-[oklch(0.1_0.02_270/60%)] font-mono text-base ${accent} animate-neon-pulse`}>
+        {formula}
+      </div>
+    </motion.div>
+  );
+}
+
+function GrowthChart({
+  type,
+  color,
+  label,
+}: {
+  type: "nlogn" | "n3" | "n" | "n2";
+  color: string;
+  label: string;
+}) {
+  const data = useMemo(() => {
+    const arr: { n: number; y: number }[] = [];
+    for (let n = 1; n <= 50; n++) {
+      let y = 0;
+      if (type === "nlogn") y = n * Math.log2(Math.max(2, n));
+      else if (type === "n3") y = n * n * n;
+      else if (type === "n") y = n;
+      else if (type === "n2") y = n * n;
+      arr.push({ n, y });
+    }
+    return arr;
+  }, [type]);
+  return (
+    <div className="h-56 w-full">
+      <div className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground mb-2">
+        {label}
+      </div>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid stroke="oklch(0.4 0.08 280 / 20%)" strokeDasharray="3 3" />
+          <XAxis dataKey="n" stroke="oklch(0.7 0.04 250)" fontSize={11} />
+          <YAxis stroke="oklch(0.7 0.04 250)" fontSize={11} />
+          <Tooltip
+            contentStyle={{
+              background: "oklch(0.15 0.04 270 / 95%)",
+              border: "1px solid oklch(0.4 0.08 280 / 50%)",
+              borderRadius: 8,
+              fontSize: 12,
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="y"
+            stroke={color}
+            strokeWidth={2.5}
+            dot={false}
+            isAnimationActive
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function HeapMemoryViz() {
+  const heap = [5, 10, 20, 30];
+  return (
+    <div className="mt-4">
+      <div className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground mb-3">
+        Heap Memory Layout — O(n)
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {heap.map((v, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, scale: 0.6 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: i * 0.1 }}
+            className="h-16 w-16 rounded-xl glass neon-border-cyan flex flex-col items-center justify-center"
+          >
+            <div className="text-[9px] font-mono text-muted-foreground">[{i}]</div>
+            <div className="neon-text-cyan font-mono font-bold">{v}</div>
+          </motion.div>
+        ))}
+      </div>
+      <div className="mt-3 text-xs font-mono text-muted-foreground">
+        Total cells = n &nbsp;→&nbsp; <span className="neon-text-cyan">Space = O(n)</span>
+      </div>
+    </div>
+  );
+}
+
+function DpMatrixViz() {
+  const n = 5;
+  return (
+    <div className="mt-4">
+      <div className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground mb-3">
+        DP Matrix dp[i][j] — O(n²)
+      </div>
+      <div
+        className="grid gap-1.5"
+        style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`, maxWidth: 320 }}
+      >
+        {Array.from({ length: n * n }).map((_, k) => {
+          const i = Math.floor(k / n);
+          const j = k % n;
+          const active = j >= i;
+          return (
+            <motion.div
+              key={k}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: k * 0.02 }}
+              className={`aspect-square rounded-md flex items-center justify-center text-[10px] font-mono ${
+                active
+                  ? "bg-[oklch(0.65_0.27_300/25%)] neon-text-purple border border-[oklch(0.65_0.27_300/50%)]"
+                  : "bg-[oklch(0.2_0.04_270/40%)] text-muted-foreground/40 border border-[oklch(0.3_0.05_270/30%)]"
+              }`}
+            >
+              {i},{j}
+            </motion.div>
+          );
+        })}
+      </div>
+      <div className="mt-3 text-xs font-mono text-muted-foreground">
+        Total cells = n × n &nbsp;→&nbsp; <span className="neon-text-purple">Space = O(n²)</span>
+      </div>
+    </div>
+  );
+}
+
+function DetailedComplexity() {
+  const [timeAlg, setTimeAlg] = useState<"greedy" | "dp">("greedy");
+  const [spaceAlg, setSpaceAlg] = useState<"greedy" | "dp">("greedy");
+  const [showHeapNote, setShowHeapNote] = useState(false);
+
+  const selectClass =
+    "glass-strong rounded-lg px-4 py-2.5 font-mono text-sm neon-border-cyan focus:outline-none cursor-pointer text-foreground";
+
+  return (
+    <section className="relative py-28 px-6">
+      <div className="absolute inset-0 grid-bg opacity-30 pointer-events-none" />
+      <div className="mx-auto max-w-6xl relative">
+        <SectionTitle
+          eyebrow="10 — Deep Dive"
+          title="Detailed Time & Space Complexity Analysis"
+          subtitle="Step-by-step mathematical breakdown of algorithm efficiency"
+        />
+
+        {/* TIME COMPLEXITY */}
+        <GlowCard className="mb-16">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">
+                Module A
+              </div>
+              <h3 className="font-display text-2xl font-bold gradient-text mt-1">
+                Time Complexity Analysis
+              </h3>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">
+                Select Time Complexity Analysis
+              </label>
+              <select
+                value={timeAlg}
+                onChange={(e) => setTimeAlg(e.target.value as "greedy" | "dp")}
+                className={selectClass}
+              >
+                <option value="greedy">Greedy Algorithm</option>
+                <option value="dp">Dynamic Programming</option>
+              </select>
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {timeAlg === "greedy" ? (
+              <motion.div
+                key="greedy-time"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.35 }}
+              >
+                <h4 className="font-display text-xl font-bold neon-text-cyan">
+                  Greedy Algorithm Time Complexity
+                </h4>
+                <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
+                  The greedy approach uses a Min Heap to always pick the two smallest
+                  backups for merging. We derive its complexity in three precise steps.
+                </p>
+
+                <div className="grid md:grid-cols-3 gap-5 mt-6">
+                  <StepCard
+                    index={1}
+                    title="Build Min Heap"
+                    body="Insert all n backup sizes into a min heap. Using bottom-up heapify, this can be done in linear time."
+                    formula="O(n)"
+                  />
+                  <StepCard
+                    index={2}
+                    title="Extract + Merge + Insert"
+                    body="Each iteration extracts two minima and reinserts their sum. Each heap op costs O(log n) → 3·O(log n) = O(log n) per step."
+                    formula="O(log n) per merge"
+                  />
+                  <StepCard
+                    index={3}
+                    title="Repeat n − 1 times"
+                    body="We reduce n elements to 1 by performing exactly n − 1 merges. Multiply per-merge cost by iteration count."
+                    formula="(n − 1) × O(log n)"
+                  />
+                </div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  className="mt-8 p-6 rounded-2xl gradient-neon text-background text-center"
+                >
+                  <div className="text-xs uppercase tracking-widest font-mono opacity-80">
+                    Final Derivation
+                  </div>
+                  <div className="mt-2 font-mono text-2xl font-bold">
+                    O(n) + (n − 1) · O(log n)  =  O(n log n)
+                  </div>
+                </motion.div>
+
+                <div className="mt-8">
+                  <button
+                    onClick={() => setShowHeapNote((s) => !s)}
+                    className="btn-neon"
+                  >
+                    {showHeapNote ? "Hide" : "Why Min Heap makes it efficient"}
+                  </button>
+                  <AnimatePresence>
+                    {showHeapNote && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-5 glass rounded-xl p-5 neon-border-cyan">
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            A Min Heap maintains the smallest element at the root in
+                            O(1) access time, with O(log n) updates. A naive linear
+                            scan would cost O(n) per extraction → total O(n²). The
+                            heap structure collapses repeated minimum-finding into a
+                            logarithmic operation, which is the single optimization
+                            that turns this algorithm from quadratic into{" "}
+                            <span className="neon-text-cyan font-mono">O(n log n)</span>.
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {[7, 3, 12, 5, 9].map((v, i) => (
+                              <div
+                                key={i}
+                                className="h-12 w-12 rounded-lg glass neon-border-cyan flex items-center justify-center font-mono neon-text-cyan"
+                              >
+                                {v}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="mt-8 glass rounded-xl p-5">
+                  <GrowthChart
+                    type="nlogn"
+                    color="oklch(0.85 0.18 200)"
+                    label="Greedy Runtime Growth — n log n"
+                  />
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="dp-time"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.35 }}
+              >
+                <h4 className="font-display text-xl font-bold neon-text-purple">
+                  Dynamic Programming Time Complexity
+                </h4>
+                <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
+                  DP computes the optimal merge cost for every sub-range{" "}
+                  <span className="font-mono neon-text-purple">dp[i][j]</span> by
+                  trying every possible split point k. Three nested loops drive the
+                  cost.
+                </p>
+
+                <div className="grid md:grid-cols-3 gap-5 mt-6">
+                  <StepCard
+                    index={1}
+                    title="Choose left index i"
+                    body="Outer loop iterates over every possible starting position of a sub-range."
+                    formula="O(n)"
+                    color="purple"
+                  />
+                  <StepCard
+                    index={2}
+                    title="Choose right index j"
+                    body="Second loop iterates over every possible ending position for the sub-range starting at i."
+                    formula="O(n)"
+                    color="purple"
+                  />
+                  <StepCard
+                    index={3}
+                    title="Try all splits k"
+                    body="Inner loop tries every split point k between i and j to find the minimum-cost partition."
+                    formula="O(n)"
+                    color="purple"
+                  />
+                </div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  className="mt-8 p-6 rounded-2xl bg-gradient-to-r from-[oklch(0.65_0.27_300)] to-[oklch(0.7_0.28_340)] text-background text-center"
+                >
+                  <div className="text-xs uppercase tracking-widest font-mono opacity-80">
+                    Final Derivation
+                  </div>
+                  <div className="mt-2 font-mono text-2xl font-bold">
+                    O(n) × O(n) × O(n)  =  O(n³)
+                  </div>
+                </motion.div>
+
+                <div className="mt-8 glass rounded-xl p-5 neon-border-purple">
+                  <h5 className="font-display text-sm font-bold neon-text-purple mb-2">
+                    Why DP becomes expensive
+                  </h5>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    As n grows, the number of sub-problems grows as n², and each
+                    sub-problem evaluates up to n split points. Doubling the input
+                    multiplies work by 8×, making DP impractical beyond a few
+                    hundred backups.
+                  </p>
+                </div>
+
+                <div className="mt-8 glass rounded-xl p-5">
+                  <GrowthChart
+                    type="n3"
+                    color="oklch(0.7 0.28 340)"
+                    label="DP Runtime Growth — n³"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </GlowCard>
+
+        {/* SPACE COMPLEXITY */}
+        <GlowCard className="mb-16">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">
+                Module B
+              </div>
+              <h3 className="font-display text-2xl font-bold gradient-text mt-1">
+                Space Complexity Analysis
+              </h3>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">
+                Select Space Complexity Analysis
+              </label>
+              <select
+                value={spaceAlg}
+                onChange={(e) => setSpaceAlg(e.target.value as "greedy" | "dp")}
+                className={selectClass}
+              >
+                <option value="greedy">Greedy Algorithm</option>
+                <option value="dp">Dynamic Programming</option>
+              </select>
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {spaceAlg === "greedy" ? (
+              <motion.div
+                key="greedy-space"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.35 }}
+              >
+                <h4 className="font-display text-xl font-bold neon-text-cyan">
+                  Greedy Algorithm Space Complexity
+                </h4>
+                <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
+                  The greedy method stores only the active heap of unmerged
+                  backups, plus a constant number of helper variables.
+                </p>
+
+                <div className="grid md:grid-cols-2 gap-5 mt-6">
+                  <StepCard
+                    index={1}
+                    title="Min Heap storage"
+                    body="The heap holds up to n elements at peak (initial load), shrinking by one each merge."
+                    formula="O(n)"
+                  />
+                  <StepCard
+                    index={2}
+                    title="Auxiliary variables"
+                    body="Pointers, accumulators, and the running cost use a fixed amount of memory regardless of n."
+                    formula="O(1)"
+                  />
+                </div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  className="mt-8 p-6 rounded-2xl gradient-neon text-background text-center"
+                >
+                  <div className="text-xs uppercase tracking-widest font-mono opacity-80">
+                    Final Space
+                  </div>
+                  <div className="mt-2 font-mono text-2xl font-bold">O(n)</div>
+                </motion.div>
+
+                <div className="glass rounded-xl p-5 mt-8 neon-border-cyan">
+                  <HeapMemoryViz />
+                </div>
+
+                <div className="mt-8 glass rounded-xl p-5">
+                  <GrowthChart
+                    type="n"
+                    color="oklch(0.85 0.18 200)"
+                    label="Greedy Memory Growth — n"
+                  />
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="dp-space"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.35 }}
+              >
+                <h4 className="font-display text-xl font-bold neon-text-purple">
+                  Dynamic Programming Space Complexity
+                </h4>
+                <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
+                  DP must memoize the optimal cost for every sub-range{" "}
+                  <span className="font-mono neon-text-purple">dp[i][j]</span>,
+                  producing a two-dimensional table.
+                </p>
+
+                <div className="grid md:grid-cols-3 gap-5 mt-6">
+                  <StepCard
+                    index={1}
+                    title="Rows"
+                    body="One row per possible left endpoint i of a sub-range."
+                    formula="n"
+                    color="purple"
+                  />
+                  <StepCard
+                    index={2}
+                    title="Columns"
+                    body="One column per possible right endpoint j of a sub-range."
+                    formula="n"
+                    color="purple"
+                  />
+                  <StepCard
+                    index={3}
+                    title="Total cells"
+                    body="Every (i, j) pair stores one memoized sub-result."
+                    formula="n × n  =  n²"
+                    color="purple"
+                  />
+                </div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  className="mt-8 p-6 rounded-2xl bg-gradient-to-r from-[oklch(0.65_0.27_300)] to-[oklch(0.7_0.28_340)] text-background text-center"
+                >
+                  <div className="text-xs uppercase tracking-widest font-mono opacity-80">
+                    Final Space
+                  </div>
+                  <div className="mt-2 font-mono text-2xl font-bold">O(n²)</div>
+                </motion.div>
+
+                <div className="glass rounded-xl p-5 mt-8 neon-border-purple">
+                  <DpMatrixViz />
+                </div>
+
+                <div className="mt-8 glass rounded-xl p-5">
+                  <GrowthChart
+                    type="n2"
+                    color="oklch(0.7 0.28 340)"
+                    label="DP Memory Growth — n²"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </GlowCard>
+
+        {/* FINAL COMPARISON */}
+        <div className="text-center mb-10">
+          <div className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">
+            Module C
+          </div>
+          <h3 className="font-display text-3xl font-bold gradient-text mt-1">
+            Final Complexity Comparison
+          </h3>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6 mb-10">
+          {[
+            {
+              name: "Greedy (Min Heap)",
+              tag: "★ Recommended",
+              color: "cyan" as const,
+              rows: [
+                ["Time Complexity", "O(n log n)"],
+                ["Space Complexity", "O(n)"],
+                ["Scalability", "High"],
+                ["Performance", "Fast"],
+                ["Practical Usage", "Recommended"],
+              ],
+            },
+            {
+              name: "Dynamic Programming",
+              tag: "Educational",
+              color: "purple" as const,
+              rows: [
+                ["Time Complexity", "O(n³)"],
+                ["Space Complexity", "O(n²)"],
+                ["Scalability", "Medium"],
+                ["Performance", "Slower"],
+                ["Practical Usage", "Educational"],
+              ],
+            },
+          ].map((card) => (
+            <motion.div
+              key={card.name}
+              whileHover={{ y: -6 }}
+              transition={{ type: "spring", stiffness: 200, damping: 18 }}
+              className={`glass-strong rounded-2xl p-6 border ${
+                card.color === "cyan"
+                  ? "neon-border-cyan"
+                  : "neon-border-purple"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <h4
+                  className={`font-display text-lg font-bold ${
+                    card.color === "cyan" ? "neon-text-cyan" : "neon-text-purple"
+                  }`}
+                >
+                  {card.name}
+                </h4>
+                <span
+                  className={`text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded-md ${
+                    card.color === "cyan"
+                      ? "bg-[oklch(0.75_0.2_220/20%)] neon-text-cyan"
+                      : "bg-[oklch(0.65_0.27_300/20%)] neon-text-purple"
+                  }`}
+                >
+                  {card.tag}
+                </span>
+              </div>
+              <div className="mt-5 space-y-2.5 font-mono text-sm">
+                {card.rows.map(([k, v]) => (
+                  <div
+                    key={k}
+                    className="flex justify-between py-2 border-b border-[oklch(0.3_0.05_270/30%)]"
+                  >
+                    <span className="text-muted-foreground">{k}</span>
+                    <span
+                      className={
+                        card.color === "cyan"
+                          ? "neon-text-cyan"
+                          : "neon-text-purple"
+                      }
+                    >
+                      {v}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="p-6 rounded-2xl gradient-neon text-background text-center"
+        >
+          <div className="text-xs uppercase tracking-widest font-mono opacity-80">
+            Verdict
+          </div>
+          <div className="mt-1 font-bold text-lg">
+            Greedy is the best practical approach — optimal cost at O(n log n)
+            time and O(n) space.
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 /* ---------- Footer ---------- */
 function Footer() {
   return (
