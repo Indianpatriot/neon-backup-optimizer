@@ -17,7 +17,13 @@ import {
   Activity,
   Layers,
   Binary,
+  Gauge,
+  AlertTriangle,
+  TimerReset,
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   ResponsiveContainer,
   LineChart,
@@ -1343,64 +1349,252 @@ function Educational() {
   );
 }
 
-/* ---------- Comparison charts ---------- */
-function ComparisonCharts() {
-  const data = useMemo(() => {
-    const sizes = [4, 8, 16, 32, 64, 128, 256];
-    return sizes.map((n) => ({
-      n: `n=${n}`,
-      greedyTime: +(n * Math.log2(n)).toFixed(2),
-      dpTime: +(n * n * n).toFixed(2),
-      greedyMem: n,
-      dpMem: n * n,
-    }));
-  }, []);
-  const tooltipStyle = {
-    background: "oklch(0.15 0.04 270 / 95%)",
-    border: "1px solid oklch(0.7 0.22 240 / 60%)",
-    borderRadius: 8,
-    fontFamily: "monospace",
-    fontSize: 12,
-  } as const;
+/* ---------- Empirical Complexity Analysis (dynamic, input-size driven) ---------- */
+const PRESETS = [5, 10, 50, 100, 500, 1000];
+
+function genRandomSizes(n: number): number[] {
+  const arr: number[] = new Array(n);
+  for (let i = 0; i < n; i++) arr[i] = 1 + Math.floor(Math.random() * 500);
+  return arr;
+}
+
+function sampleRange(n: number, target = 60): number[] {
+  if (n <= target) return Array.from({ length: n }, (_, i) => i + 1);
+  const out: number[] = [];
+  for (let i = 0; i < target; i++) {
+    const x = Math.max(1, Math.round(((i + 1) / target) * n));
+    if (out[out.length - 1] !== x) out.push(x);
+  }
+  if (out[out.length - 1] !== n) out.push(n);
+  return out;
+}
+
+function NeonTooltip({
+  active,
+  payload,
+  label,
+  unit,
+  greedyLabel,
+  dpLabel,
+}: any) {
+  if (!active || !payload || !payload.length) return null;
+  const g = payload.find((p: any) => p.dataKey === "greedy")?.value;
+  const d = payload.find((p: any) => p.dataKey === "dp")?.value;
   return (
-    <section className="relative py-24 px-6">
+    <div className="rounded-md border border-[oklch(0.7_0.22_240/60%)] bg-[oklch(0.12_0.04_270/95%)] px-3 py-2 font-mono text-xs shadow-[0_0_20px_oklch(0.7_0.22_240/40%)] backdrop-blur">
+      <div className="text-muted-foreground">
+        Input Size: <span className="neon-text-cyan">n = {label}</span>
+      </div>
+      {g !== undefined && (
+        <div className="neon-text-cyan">
+          {greedyLabel}: {Number(g).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          {unit}
+        </div>
+      )}
+      {d !== undefined && (
+        <div className="neon-text-pink">
+          {dpLabel}: {Number(d).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          {unit}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type BenchResult = {
+  n: number;
+  greedyMs: number;
+  dpMs: number;
+  dpEstimated: boolean;
+};
+
+function ComparisonCharts() {
+  const [n, setN] = useState(50);
+  const [logScale, setLogScale] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [bench, setBench] = useState<BenchResult | null>(null);
+
+  const timeData = useMemo(() => {
+    const xs = sampleRange(n);
+    return xs.map((x) => ({
+      n: x,
+      greedy: +(x * Math.log2(Math.max(2, x))).toFixed(3),
+      dp: +(x * x * x).toFixed(0),
+    }));
+  }, [n]);
+
+  const spaceData = useMemo(() => {
+    const xs = sampleRange(n);
+    return xs.map((x) => ({ n: x, greedy: x, dp: x * x }));
+  }, [n]);
+
+  const runBenchmark = async () => {
+    setRunning(true);
+    setBench(null);
+    await new Promise((r) => setTimeout(r, 30));
+    const arr = genRandomSizes(n);
+    const t1 = performance.now();
+    optimalMerge(arr);
+    const greedyMs = performance.now() - t1;
+
+    let dpMs = 0;
+    let dpEstimated = false;
+    if (n <= 200) {
+      await new Promise((r) => setTimeout(r, 10));
+      const t2 = performance.now();
+      optimalMergeDP(arr);
+      dpMs = performance.now() - t2;
+    } else {
+      const cal = 80;
+      const calArr = genRandomSizes(cal);
+      const t2 = performance.now();
+      optimalMergeDP(calArr);
+      const calMs = performance.now() - t2;
+      dpMs = calMs * Math.pow(n / cal, 3);
+      dpEstimated = true;
+    }
+    setBench({ n, greedyMs, dpMs, dpEstimated });
+    setRunning(false);
+  };
+
+  const ratio = bench && bench.greedyMs > 0 ? bench.dpMs / bench.greedyMs : 0;
+  const warnLarge = n > 100;
+  const skipReal = n > 200;
+
+  const axisStroke = "oklch(0.7 0.04 250)";
+  const gridStroke = "oklch(0.4 0.08 280 / 30%)";
+  const greedyColor = "oklch(0.85 0.18 200)";
+  const dpColor = "oklch(0.7 0.28 340)";
+
+  return (
+    <section id="empirical" className="relative py-24 px-6">
       <div className="mx-auto max-w-6xl">
         <SectionTitle
-          eyebrow="08 — Comparison"
-          title="Algorithm Performance Comparison"
-          subtitle="Live curves comparing how Greedy and DP scale across input size."
+          eyebrow="08 — Empirical Analysis"
+          title="Empirical Complexity Analysis"
+          subtitle="Drag the input size — both complexity growth curves and the actual runtime benchmark update in real time."
         />
+
+        {/* Control card */}
+        <GlowCard className="min-w-0 mb-6">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Gauge className="h-5 w-5 neon-text-cyan" />
+                <h4 className="text-lg font-bold neon-text-cyan font-mono">› Input size control</h4>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-xs">
+                <span className="text-muted-foreground">n =</span>
+                <span className="neon-text-purple text-2xl font-bold tabular-nums">{n}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+              <div className="flex-1 min-w-0">
+                <Slider value={[n]} min={1} max={1000} step={1} onValueChange={(v) => setN(v[0])} />
+              </div>
+              <Input
+                type="number"
+                min={1}
+                max={1000}
+                value={n}
+                onChange={(e) => {
+                  const v = Math.max(1, Math.min(1000, Number(e.target.value) || 1));
+                  setN(v);
+                }}
+                className="w-28 font-mono bg-[oklch(0.15_0.04_270/60%)] border-[oklch(0.7_0.22_240/40%)]"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {PRESETS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setN(p)}
+                  className={`rounded-full border px-3 py-1 text-xs font-mono transition ${
+                    n === p
+                      ? "border-[oklch(0.7_0.22_240/80%)] bg-[oklch(0.7_0.22_240/20%)] neon-text-cyan shadow-[0_0_12px_oklch(0.7_0.22_240/40%)]"
+                      : "border-[oklch(0.4_0.08_280/40%)] text-muted-foreground hover:border-[oklch(0.7_0.22_240/60%)] hover:neon-text-cyan"
+                  }`}
+                >
+                  n = {p}
+                </button>
+              ))}
+            </div>
+
+            <AnimatePresence>
+              {warnLarge && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="flex items-start gap-2 rounded-md border border-[oklch(0.75_0.2_60/50%)] bg-[oklch(0.2_0.1_60/30%)] p-3 text-xs font-mono"
+                >
+                  <AlertTriangle className="h-4 w-4 mt-0.5 text-[oklch(0.85_0.18_70)] shrink-0" />
+                  <div className="text-[oklch(0.9_0.08_70)]">
+                    Dynamic Programming may become computationally expensive for large inputs due to O(n³) complexity.
+                    {skipReal && (
+                      <span className="block mt-1 opacity-80">
+                        For n &gt; 200, DP runtime is estimated from a calibration run to keep the browser responsive.
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </GlowCard>
+
+        {/* Two growth charts */}
         <div className="grid lg:grid-cols-2 gap-6">
           <GlowCard className="min-w-0">
-            <h4 className="text-lg font-bold neon-text-cyan mb-2 font-mono">› Execution speed (log scale)</h4>
-            <p className="text-xs text-muted-foreground mb-4">Greedy O(n log n) vs DP O(n³).</p>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-lg font-bold neon-text-cyan font-mono">› Time Complexity Growth Comparison</h4>
+              <button
+                onClick={() => setLogScale((s) => !s)}
+                className="text-[10px] font-mono uppercase tracking-widest rounded border border-[oklch(0.7_0.22_240/40%)] px-2 py-1 hover:neon-text-cyan transition"
+              >
+                {logScale ? "log scale" : "linear"}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Greedy <span className="neon-text-cyan">O(n log n)</span> vs DP <span className="neon-text-pink">O(n³)</span> — computed from real formulas across 1 → {n}.
+            </p>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.4 0.08 280 / 30%)" />
-                  <XAxis dataKey="n" stroke="oklch(0.7 0.04 250)" fontSize={11} />
-                  <YAxis stroke="oklch(0.7 0.04 250)" fontSize={11} scale="log" domain={["auto", "auto"]} allowDataOverflow />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend />
+                <LineChart data={timeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                  <XAxis dataKey="n" stroke={axisStroke} fontSize={11} />
+                  <YAxis
+                    stroke={axisStroke}
+                    fontSize={11}
+                    scale={logScale ? "log" : "linear"}
+                    domain={logScale ? [1, "auto"] : [0, "auto"]}
+                    allowDataOverflow
+                  />
+                  <Tooltip content={<NeonTooltip unit=" ops" greedyLabel="Greedy Cost" dpLabel="DP Cost" />} />
+                  <Legend wrapperStyle={{ fontSize: 11, fontFamily: "monospace" }} />
                   <Line
                     type="monotone"
-                    dataKey="greedyTime"
-                    name="Greedy"
-                    stroke="oklch(0.85 0.18 200)"
-                    strokeWidth={3}
-                    dot={{ fill: "oklch(0.85 0.18 200)", r: 4 }}
+                    dataKey="greedy"
+                    name="Greedy O(n log n)"
+                    stroke={greedyColor}
+                    strokeWidth={2.5}
+                    dot={false}
                     isAnimationActive
-                    animationDuration={1400}
+                    animationDuration={700}
+                    style={{ filter: `drop-shadow(0 0 6px ${greedyColor})` }}
                   />
                   <Line
                     type="monotone"
-                    dataKey="dpTime"
-                    name="DP"
-                    stroke="oklch(0.7 0.28 340)"
-                    strokeWidth={3}
-                    dot={{ fill: "oklch(0.7 0.28 340)", r: 4 }}
+                    dataKey="dp"
+                    name="Dynamic Programming O(n³)"
+                    stroke={dpColor}
+                    strokeWidth={2.5}
+                    dot={false}
                     isAnimationActive
-                    animationDuration={1400}
+                    animationDuration={700}
+                    style={{ filter: `drop-shadow(0 0 6px ${dpColor})` }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -1408,41 +1602,150 @@ function ComparisonCharts() {
           </GlowCard>
 
           <GlowCard className="min-w-0">
-            <h4 className="text-lg font-bold neon-text-purple mb-2 font-mono">› Memory usage</h4>
-            <p className="text-xs text-muted-foreground mb-4">Greedy O(n) vs DP O(n²).</p>
+            <h4 className="text-lg font-bold neon-text-purple font-mono mb-2">› Space Complexity Growth Comparison</h4>
+            <p className="text-xs text-muted-foreground mb-4">
+              Greedy heap <span className="neon-text-cyan">O(n)</span> vs DP table <span className="neon-text-pink">O(n²)</span>.
+            </p>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.4 0.08 280 / 30%)" />
-                  <XAxis dataKey="n" stroke="oklch(0.7 0.04 250)" fontSize={11} />
-                  <YAxis stroke="oklch(0.7 0.04 250)" fontSize={11} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend />
+                <LineChart data={spaceData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                  <XAxis dataKey="n" stroke={axisStroke} fontSize={11} />
+                  <YAxis stroke={axisStroke} fontSize={11} />
+                  <Tooltip content={<NeonTooltip unit=" units" greedyLabel="Greedy Memory" dpLabel="DP Memory" />} />
+                  <Legend wrapperStyle={{ fontSize: 11, fontFamily: "monospace" }} />
                   <Line
                     type="monotone"
-                    dataKey="greedyMem"
+                    dataKey="greedy"
                     name="Greedy O(n)"
-                    stroke="oklch(0.85 0.18 200)"
-                    strokeWidth={3}
-                    dot={{ fill: "oklch(0.85 0.18 200)", r: 4 }}
+                    stroke={greedyColor}
+                    strokeWidth={2.5}
+                    dot={false}
                     isAnimationActive
-                    animationDuration={1400}
+                    animationDuration={700}
+                    style={{ filter: `drop-shadow(0 0 6px ${greedyColor})` }}
                   />
                   <Line
                     type="monotone"
-                    dataKey="dpMem"
+                    dataKey="dp"
                     name="DP O(n²)"
-                    stroke="oklch(0.7 0.28 340)"
-                    strokeWidth={3}
-                    dot={{ fill: "oklch(0.7 0.28 340)", r: 4 }}
+                    stroke={dpColor}
+                    strokeWidth={2.5}
+                    dot={false}
                     isAnimationActive
-                    animationDuration={1400}
+                    animationDuration={700}
+                    style={{ filter: `drop-shadow(0 0 6px ${dpColor})` }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </GlowCard>
         </div>
+
+        {/* Actual benchmark */}
+        <GlowCard className="min-w-0 mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <TimerReset className="h-5 w-5 neon-text-pink" />
+              <h4 className="text-lg font-bold neon-text-pink font-mono">› Actual Runtime Benchmark</h4>
+            </div>
+            <Button
+              onClick={runBenchmark}
+              disabled={running}
+              className="bg-[oklch(0.7_0.22_240/30%)] border border-[oklch(0.7_0.22_240/70%)] hover:bg-[oklch(0.7_0.22_240/50%)] neon-text-cyan font-mono shadow-[0_0_18px_oklch(0.7_0.22_240/40%)]"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              {running ? "Running…" : `Run Comparison (n = ${n})`}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4 font-mono">
+            Generates {n} random backup sizes, runs both algorithms, and times them with{" "}
+            <span className="neon-text-cyan">performance.now()</span>.
+          </p>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            <motion.div
+              key={bench ? `g-${bench.greedyMs}` : "g-idle"}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-lg border border-[oklch(0.7_0.22_200/40%)] bg-[oklch(0.15_0.05_220/50%)] p-4 shadow-[0_0_18px_oklch(0.7_0.22_200/20%)]"
+            >
+              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Greedy</div>
+              <div className="mt-1 text-3xl font-bold neon-text-cyan font-mono tabular-nums">
+                {bench ? bench.greedyMs.toFixed(3) : "—"}
+                <span className="text-base ml-1">ms</span>
+              </div>
+              <div className="text-[10px] font-mono mt-1 text-muted-foreground">O(n log n) · min-heap</div>
+            </motion.div>
+
+            <motion.div
+              key={bench ? `d-${bench.dpMs}` : "d-idle"}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-lg border border-[oklch(0.7_0.28_340/40%)] bg-[oklch(0.15_0.06_320/50%)] p-4 shadow-[0_0_18px_oklch(0.7_0.28_340/20%)]"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                  Dynamic Programming
+                </div>
+                {bench?.dpEstimated && (
+                  <span className="text-[9px] font-mono rounded-full border border-[oklch(0.75_0.2_60/60%)] px-2 py-0.5 text-[oklch(0.9_0.08_70)]">
+                    estimated
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 text-3xl font-bold neon-text-pink font-mono tabular-nums">
+                {bench ? bench.dpMs.toFixed(3) : "—"}
+                <span className="text-base ml-1">ms</span>
+              </div>
+              <div className="text-[10px] font-mono mt-1 text-muted-foreground">O(n³) · 3 nested loops</div>
+            </motion.div>
+
+            <motion.div
+              key={bench ? `r-${ratio}` : "r-idle"}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-lg border border-[oklch(0.7_0.2_300/40%)] bg-[oklch(0.15_0.06_290/50%)] p-4 shadow-[0_0_18px_oklch(0.7_0.2_300/20%)]"
+            >
+              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Speed Ratio</div>
+              <div className="mt-1 text-3xl font-bold neon-text-purple font-mono tabular-nums">
+                {bench ? `${ratio.toFixed(1)}×` : "—"}
+              </div>
+              <div className="text-[10px] font-mono mt-1 text-muted-foreground">
+                {bench ? `DP is ${ratio.toFixed(1)}× slower than Greedy` : "Run to compare"}
+              </div>
+            </motion.div>
+          </div>
+        </GlowCard>
+
+        {/* Educational explanation */}
+        <GlowCard className="min-w-0 mt-6">
+          <h4 className="text-lg font-bold neon-text-cyan font-mono mb-3">› Why does DP grow faster?</h4>
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div className="rounded-md border border-[oklch(0.7_0.22_200/30%)] bg-[oklch(0.12_0.04_220/40%)] p-4">
+              <div className="font-mono neon-text-cyan mb-2">Greedy · min-heap</div>
+              <ul className="space-y-1.5 text-muted-foreground font-mono text-xs leading-relaxed">
+                <li>› Each insert / extract on the heap costs <span className="neon-text-cyan">O(log n)</span>.</li>
+                <li>› Performs exactly <span className="neon-text-cyan">n − 1</span> merges.</li>
+                <li>› Total work: <span className="neon-text-cyan">O(n log n)</span>.</li>
+                <li>› Memory: just the heap → <span className="neon-text-cyan">O(n)</span>.</li>
+              </ul>
+            </div>
+            <div className="rounded-md border border-[oklch(0.7_0.28_340/30%)] bg-[oklch(0.12_0.06_320/40%)] p-4">
+              <div className="font-mono neon-text-pink mb-2">Dynamic Programming</div>
+              <ul className="space-y-1.5 text-muted-foreground font-mono text-xs leading-relaxed">
+                <li>› Considers every sub-range <span className="neon-text-pink">[i..j]</span> → O(n²) states.</li>
+                <li>› For each state tries every split <span className="neon-text-pink">k</span> → ×O(n) work.</li>
+                <li>› Total work: <span className="neon-text-pink">O(n³)</span>.</li>
+                <li>› Memory: full dp + split tables → <span className="neon-text-pink">O(n²)</span>.</li>
+              </ul>
+            </div>
+          </div>
+          <p className="mt-4 text-xs font-mono text-muted-foreground">
+            As <span className="neon-text-cyan">n</span> increases, DP work multiplies cubically while Greedy grows almost linearly.
+            That gap is exactly what the curves and the live benchmark above visualize.
+          </p>
+        </GlowCard>
       </div>
     </section>
   );
